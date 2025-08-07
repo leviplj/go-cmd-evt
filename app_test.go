@@ -375,7 +375,7 @@ func TestApp_Handle_EdgeCases(t *testing.T) {
 		app := NewApp()
 		ctx := context.Background()
 
-		cmd := CreateUserCommand{Name: "Test", Email: "test@example.com"}
+		cmd := &CreateUserCommand{Name: "Test", Email: "test@example.com"}
 
 		result, err := app.Handle(ctx, cmd)
 
@@ -416,7 +416,7 @@ func BenchmarkApp_Handle(b *testing.B) {
 	userModule := NewUserModule()
 	app := NewApp(userModule)
 	ctx := context.Background()
-	cmd := CreateUserCommand{Name: "John", Email: "john@example.com"}
+	cmd := &CreateUserCommand{Name: "John", Email: "john@example.com"}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

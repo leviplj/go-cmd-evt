@@ -30,7 +30,17 @@ func (d *InMemoryDispatcher) Subscribe(event gocmdevt.Event, handler gocmdevt.Ev
 	d.handlers[eventType] = append(d.handlers[eventType], handler)
 }
 
-func (d *InMemoryDispatcher) Dispatch(ctx context.Context, event gocmdevt.Event) {
+func (d *InMemoryDispatcher) Dispatch(event gocmdevt.Event) {
+	ctx := context.Background()
+	eventType := reflect.TypeOf(event)
+	if handlers, exists := d.handlers[eventType]; exists {
+		for _, handler := range handlers {
+			handler(ctx, event)
+		}
+	}
+}
+
+func (d *InMemoryDispatcher) DispatchCtx(ctx context.Context, event gocmdevt.Event) {
 	eventType := reflect.TypeOf(event)
 	if handlers, exists := d.handlers[eventType]; exists {
 		for _, handler := range handlers {

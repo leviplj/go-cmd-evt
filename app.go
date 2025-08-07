@@ -29,6 +29,12 @@ func NewApp(modules ...Module) *App {
 	return app
 }
 
+func (a *App) RegisterModule(module Module) {
+	for typ, handler := range module.Handlers() {
+		a.handlers[typ] = handler
+	}
+}
+
 func (a *App) Handle(ctx context.Context, cmd Command) (any, error) {
 	handler, ok := a.handlers[reflect.TypeOf(cmd)]
 	if !ok {

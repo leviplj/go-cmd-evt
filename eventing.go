@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"log"
+	"reflect"
 	"time"
 )
 
@@ -26,6 +27,9 @@ type Event interface {
 
 	// EventVersion returns the version of this event schema (for event evolution)
 	EventVersion() int
+
+	// Payload returns the event data as a map[string]interface{}
+	Payload() map[string]interface{}
 }
 
 // BaseEvent provides a default implementation of common event metadata
@@ -77,6 +81,16 @@ func (e BaseEvent) EventVersion() int {
 	return e.Version
 }
 
+func (e BaseEvent) Payload() map[string]interface{} {
+	return map[string]interface{}{
+		"id":        e.ID,
+		"type":      e.Type,
+		"time":      e.Time,
+		"aggregate": e.Aggregate,
+		"version":   e.Version,
+	}
+}
+
 // EventLogWriter is an interface for writing events to a log or database.
 type EventLogWriter interface {
 	Write(event Event) error
@@ -84,7 +98,8 @@ type EventLogWriter interface {
 
 // Dispatcher is an interface for dispatching events to handlers
 type Dispatcher interface {
-	Dispatch(ctx context.Context, event Event)
+	Dispatch(event Event)
+	DispatchCtx(ctx context.Context, event Event)
 }
 
 // EventEmitter handles event emission with logging and dispatching
@@ -101,15 +116,77 @@ func NewEventEmitter(logWriter EventLogWriter, dispatcher Dispatcher) *EventEmit
 	}
 }
 
-func (e *EventEmitter) Emit(ctx context.Context, event Event) {
+func (e *EventEmitter) Emit(event Event) {
 	// Log to DB
 	if err := e.LogWriter.Write(event); err != nil {
 		log.Printf("audit log failed: %v", err)
 	}
 
 	// In-process dispatch
-	e.Dispatcher.Dispatch(ctx, event)
+	e.Dispatcher.Dispatch(event)
 
 	// Optional async queue
 	// e.Queue.Publish(event)
+}
+
+func (e *EventEmitter) EmitCtx(ctx context.Context, event Event) {
+	// Log to DB
+	if err := e.LogWriter.Write(event); err != nil {
+		log.Printf("audit log failed: %v", err)
+	}
+
+	// In-process dispatch
+	e.Dispatcher.DispatchCtx(ctx, event)
+
+	// Optional async queue
+	// e.Queue.Publish(event)
+}
+
+// ###
+
+type ConsoleEventLogger struct{}
+
+func (l *ConsoleEventLogger) Write(event Event) error {
+	log.Printf("Event logged: %s at %s. ID: %s", event.EventType(), event.EventTime(), event.EventID())
+	return nil
+}
+
+func NewConsoleEventLogger() *ConsoleEventLogger {
+	return &ConsoleEventLogger{}
+}
+
+// ###
+
+type InMemoryDispatcher struct {
+	handlers map[reflect.Type][]EventHandlerFunc
+}
+
+func NewInMemoryDispatcher() *InMemoryDispatcher {
+	return &InMemoryDispatcher{
+		handlers: make(map[reflect.Type][]EventHandlerFunc),
+	}
+}
+
+func (d *InMemoryDispatcher) Subscribe(event Event, handler EventHandlerFunc) {
+	eventType := reflect.TypeOf(event)
+	d.handlers[eventType] = append(d.handlers[eventType], handler)
+}
+
+func (d *InMemoryDispatcher) Dispatch(event Event) {
+	ctx := context.Background()
+	eventType := reflect.TypeOf(event)
+	if handlers, exists := d.handlers[eventType]; exists {
+		for _, handler := range handlers {
+			handler(ctx, event)
+		}
+	}
+}
+
+func (d *InMemoryDispatcher) DispatchCtx(ctx context.Context, event Event) {
+	eventType := reflect.TypeOf(event)
+	if handlers, exists := d.handlers[eventType]; exists {
+		for _, handler := range handlers {
+			handler(ctx, event)
+		}
+	}
 }

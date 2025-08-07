@@ -36,6 +36,18 @@ type OrderCreatedEvent struct {
 	TotalAmount float64 `json:"total_amount"`
 }
 
+func (e *OrderCreatedEvent) Payload() map[string]interface{} {
+	return map[string]interface{}{
+		"id":           e.ID,
+		"type":         e.Type,
+		"time":         e.Time,
+		"customer_id":  e.CustomerID,
+		"product_id":   e.ProductID,
+		"quantity":     e.Quantity,
+		"total_amount": e.TotalAmount,
+	}
+}
+
 func NewOrderCreatedEvent(orderID, customerID, productID string, quantity int, totalAmount float64) *OrderCreatedEvent {
 	return &OrderCreatedEvent{
 		BaseEvent:   gocmdevt.NewBaseEvent("OrderCreated", orderID, 1),
@@ -96,7 +108,7 @@ func (d *InMemoryDispatcher) Subscribe(eventType reflect.Type, handler func(even
 	d.handlers[eventType] = append(d.handlers[eventType], handler)
 }
 
-func (d *InMemoryDispatcher) Dispatch(event gocmdevt.Event) {
+func (d *InMemoryDispatcher) Dispatch(ctx context.Context, event gocmdevt.Event) {
 	eventType := reflect.TypeOf(event)
 	if handlers, exists := d.handlers[eventType]; exists {
 		for _, handler := range handlers {
@@ -144,7 +156,7 @@ func (m *OrderModule) createOrder(ctx context.Context, cmd gocmdevt.Command) (an
 
 	// Emit event after successful command handling
 	event := NewOrderCreatedEvent(orderID, createCmd.CustomerID, createCmd.ProductID, createCmd.Quantity, createCmd.TotalAmount)
-	m.eventEmitter.Emit(event)
+	m.eventEmitter.Emit(context.TODO(), event)
 
 	return result, nil
 }
@@ -167,7 +179,7 @@ func (m *OrderModule) processPayment(ctx context.Context, cmd gocmdevt.Command) 
 
 	// Emit event after successful payment processing
 	event := NewPaymentProcessedEvent(paymentCmd.OrderID, paymentCmd.Amount, transactionID)
-	m.eventEmitter.Emit(event)
+	m.eventEmitter.Emit(context.TODO(), event)
 
 	return result, nil
 }
@@ -185,7 +197,7 @@ func (m *OrderModule) shipOrder(ctx context.Context, cmd gocmdevt.Command) (any,
 
 	// Emit event after successful shipping
 	event := NewOrderShippedEvent(shipCmd.OrderID, trackingNumber, shipCmd.ShippingAddress)
-	m.eventEmitter.Emit(event)
+	m.eventEmitter.Emit(context.TODO(), event)
 
 	return result, nil
 }
@@ -217,7 +229,7 @@ func Example() {
 
 	// Create the application with events and modules
 	orderModule := NewOrderModule(eventEmitter)
-	app := gocmdevt.NewAppWithEvents(eventEmitter, orderModule)
+	app := gocmdevt.NewApp(orderModule)
 
 	ctx := context.Background()
 
@@ -298,14 +310,14 @@ func ExampleOrderModule_nilEventEmitter() {
 // ExampleEvent_metadata demonstrates the improved Event interface
 func ExampleEvent_metadata() {
 	event := NewOrderCreatedEvent("order-123", "customer-456", "product-789", 2, 99.99)
-	
+
 	fmt.Printf("Event Type: %s\n", event.EventType())
 	fmt.Printf("Aggregate ID: %s\n", event.AggregateID())
 	fmt.Printf("Event Version: %d\n", event.EventVersion())
 	fmt.Printf("Has Event ID: %t\n", len(event.EventID()) > 0)
 	fmt.Printf("Has Timestamp: %t\n", !event.EventTime().IsZero())
 	fmt.Printf("Customer ID: %s\n", event.CustomerID)
-	
+
 	// Output:
 	// Event Type: OrderCreated
 	// Aggregate ID: order-123
