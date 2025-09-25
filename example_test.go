@@ -108,7 +108,12 @@ func (d *InMemoryDispatcher) Subscribe(eventType reflect.Type, handler func(even
 	d.handlers[eventType] = append(d.handlers[eventType], handler)
 }
 
-func (d *InMemoryDispatcher) Dispatch(ctx context.Context, event gocmdevt.Event) {
+func (d *InMemoryDispatcher) Dispatch(event gocmdevt.Event) {
+	ctx := context.Background()
+	d.DispatchCtx(ctx, event)
+}
+
+func (d *InMemoryDispatcher) DispatchCtx(ctx context.Context, event gocmdevt.Event) {
 	eventType := reflect.TypeOf(event)
 	if handlers, exists := d.handlers[eventType]; exists {
 		for _, handler := range handlers {
@@ -156,7 +161,7 @@ func (m *OrderModule) createOrder(ctx context.Context, cmd gocmdevt.Command) (an
 
 	// Emit event after successful command handling
 	event := NewOrderCreatedEvent(orderID, createCmd.CustomerID, createCmd.ProductID, createCmd.Quantity, createCmd.TotalAmount)
-	m.eventEmitter.Emit(context.TODO(), event)
+	m.eventEmitter.EmitCtx(context.TODO(), event)
 
 	return result, nil
 }
@@ -179,7 +184,7 @@ func (m *OrderModule) processPayment(ctx context.Context, cmd gocmdevt.Command) 
 
 	// Emit event after successful payment processing
 	event := NewPaymentProcessedEvent(paymentCmd.OrderID, paymentCmd.Amount, transactionID)
-	m.eventEmitter.Emit(context.TODO(), event)
+	m.eventEmitter.EmitCtx(context.TODO(), event)
 
 	return result, nil
 }
@@ -197,7 +202,7 @@ func (m *OrderModule) shipOrder(ctx context.Context, cmd gocmdevt.Command) (any,
 
 	// Emit event after successful shipping
 	event := NewOrderShippedEvent(shipCmd.OrderID, trackingNumber, shipCmd.ShippingAddress)
-	m.eventEmitter.Emit(context.TODO(), event)
+	m.eventEmitter.EmitCtx(context.TODO(), event)
 
 	return result, nil
 }

@@ -75,7 +75,7 @@ func (m *StudentModule) createStudent(ctx context.Context, cmd gocmdevt.Command)
 
 	// Emit event
 	event := gocmdevt.NewBaseEvent("student_created", createCmd.ID, 1)
-	m.eventEmitter.Emit(ctx, event)
+	m.eventEmitter.EmitCtx(ctx, event)
 
 	return nil, nil
 }
